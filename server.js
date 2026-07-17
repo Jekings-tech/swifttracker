@@ -13,18 +13,19 @@ const PORT = process.env.PORT || 10000;
 // Connect to MongoDB
 connectDB();
 
-// Middleware
+// ===== CORS - ALLOW ALL ORIGINS =====
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'https://swifttracker-frontend.netlify.app',
+    origin: '*',  // ← This allows ANY origin
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - consider using Redis in production
+// Session - Note: 'trust proxy' may be needed for production
 app.use(session({
     secret: process.env.JWT_SECRET || 'fallback_secret',
     resave: false,
@@ -32,11 +33,11 @@ app.use(session({
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'none'
+        sameSite: 'lax'
     }
 }));
 
-// Health check endpoint (required by Render)
+// Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ 
         status: 'OK', 
@@ -90,4 +91,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📦 MongoDB: ${process.env.MONGODB_URI ? '✅ Connected' : '❌ Not configured'}`);
     console.log(`🔑 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔓 CORS: Allow ALL origins (any website can access this API)`);
 });
