@@ -33,7 +33,14 @@ const shipmentSchema = new mongoose.Schema({
     trackingId: {
         type: String,
         unique: true,
-        required: true
+        required: true,
+        default: function() {
+            // Generate tracking ID if not provided
+            const prefix = 'TRK';
+            const timestamp = Date.now().toString().slice(-8);
+            const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+            return `${prefix}${timestamp}${random}`;
+        }
     },
     shipmentInfo: {
         status: {
@@ -208,13 +215,15 @@ const shipmentSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Generate tracking ID before saving
+// Generate tracking ID before saving - FIXED VERSION
 shipmentSchema.pre('save', function(next) {
-    if (this.isNew && !this.trackingId) {
+    // If trackingId is not provided or empty, generate one
+    if (!this.trackingId || this.trackingId === '') {
         const prefix = 'TRK';
         const timestamp = Date.now().toString().slice(-8);
         const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
         this.trackingId = `${prefix}${timestamp}${random}`;
+        console.log('✅ Generated tracking ID:', this.trackingId);
     }
     this.updatedAt = Date.now();
     next();
@@ -225,7 +234,7 @@ shipmentSchema.pre('save', function(next) {
     if (this.isNew && this.trackingHistory.length === 0) {
         this.trackingHistory.push({
             status: this.shipmentInfo.status || 'Pending',
-            location: this.route.origin,
+            location: this.route.origin || 'Unknown',
             comment: 'Shipment created successfully'
         });
     }
