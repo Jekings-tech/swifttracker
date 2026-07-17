@@ -188,20 +188,22 @@ const shipmentSchema = new mongoose.Schema({
             enum: ['Pending', 'Paid', 'Partially Paid', 'Overdue']
         }
     },
-    map: {
-        originCoordinates: {
-            lat: Number,
-            lng: Number
-        },
-        currentCoordinates: {
-            lat: Number,
-            lng: Number
-        },
-        destinationCoordinates: {
-            lat: Number,
-            lng: Number
-        }
+    // In models/Shipment.js - REPLACE the map section with this:
+
+map: {
+    originCoordinates: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null }
     },
+    currentCoordinates: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null }
+    },
+    destinationCoordinates: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null }
+    }
+},
     trackingHistory: [trackingUpdateSchema],
     createdAt: {
         type: Date,

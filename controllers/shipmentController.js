@@ -127,7 +127,7 @@ exports.createShipment = async (req, res) => {
     }
 };
 
-// Update shipment
+// ✅ FIXED: Update shipment - preserves map data when not provided
 exports.updateShipment = async (req, res) => {
     try {
         const shipmentData = req.body;
@@ -137,28 +137,47 @@ exports.updateShipment = async (req, res) => {
             return res.status(404).json({ error: 'Shipment not found' });
         }
 
-        // Update geocoding if location changed
-        if (shipmentData.route) {
-            const originCoords = shipmentData.route.origin !== shipment.route.origin ? 
-                await geocodeLocation(shipmentData.route.origin) : shipment.map.originCoordinates;
-            const currentCoords = shipmentData.route.currentLocation !== shipment.route.currentLocation ?
-                await geocodeLocation(shipmentData.route.currentLocation) : shipment.map.currentCoordinates;
-            const destinationCoords = shipmentData.route.destination !== shipment.route.destination ?
-                await geocodeLocation(shipmentData.route.destination) : shipment.map.destinationCoordinates;
-
-            shipmentData.map = {
-                originCoordinates: originCoords,
-                currentCoordinates: currentCoords,
-                destinationCoordinates: destinationCoords
+        // ✅ CRITICAL FIX: Keep existing map data if frontend doesn't send it
+        if (!shipmentData.map) {
+            shipmentData.map = shipment.map || {
+                originCoordinates: { lat: null, lng: null },
+                currentCoordinates: { lat: null, lng: null },
+                destinationCoordinates: { lat: null, lng: null }
             };
         }
 
-        // Update shipment
+        // Update geocoding if location changed
+        if (shipmentData.route) {
+            // Only geocode if location actually changed
+            if (shipmentData.route.origin && shipmentData.route.origin !== shipment.route.origin) {
+                const coords = await geocodeLocation(shipmentData.route.origin);
+                if (coords) {
+                    shipmentData.map.originCoordinates = coords;
+                }
+            }
+            
+            if (shipmentData.route.currentLocation && shipmentData.route.currentLocation !== shipment.route.currentLocation) {
+                const coords = await geocodeLocation(shipmentData.route.currentLocation);
+                if (coords) {
+                    shipmentData.map.currentCoordinates = coords;
+                }
+            }
+            
+            if (shipmentData.route.destination && shipmentData.route.destination !== shipment.route.destination) {
+                const coords = await geocodeLocation(shipmentData.route.destination);
+                if (coords) {
+                    shipmentData.map.destinationCoordinates = coords;
+                }
+            }
+        }
+
+        // Update shipment with all data
         Object.assign(shipment, shipmentData);
         await shipment.save();
         
         res.json(shipment);
     } catch (error) {
+        console.error('Error updating shipment:', error);
         res.status(400).json({ error: error.message });
     }
 };
