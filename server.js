@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const session = require('express-session');
 require('dotenv').config();
 
@@ -9,25 +8,42 @@ const shipmentRoutes = require('./routes/shipmentRoutes');
 const { validateLogin, generateToken } = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 // Connect to MongoDB
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'https://swifttracker-frontend.netlify.app',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Session - consider using Redis in production
 app.use(session({
     secret: process.env.JWT_SECRET || 'fallback_secret',
     resave: false,
     saveUninitialized: false,
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: 'none'
     }
 }));
+
+// Health check endpoint (required by Render)
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
 
 // Login route
 app.post('/api/login', (req, res) => {
@@ -64,28 +80,14 @@ app.get('/api/auth/check', (req, res) => {
 // Use shipment routes
 app.use('/api/shipments', shipmentRoutes);
 
-// Serve tracking page
-app.get('/tracking', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'tracking.html'));
-});
-
-// Serve login page as default
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
-
-// Catch-all route for SPA
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) {
-        res.status(404).json({ error: 'API endpoint not found' });
-    } else {
-        res.sendFile(path.join(__dirname, 'public', 'login.html'));
-    }
+// Handle 404 for API routes
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📦 MongoDB: ${process.env.MONGODB_URI ? '✅ Connected' : '❌ Not configured'}`);
     console.log(`🔑 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
