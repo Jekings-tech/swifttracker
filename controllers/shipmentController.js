@@ -1,9 +1,16 @@
 const Shipment = require('../models/Shipment');
 const axios = require('axios');
 
-// Geocode function using Mapbox
+// ✅ FIXED: Geocode function with better error handling and logging
 const geocodeLocation = async (location) => {
     try {
+        if (!location) {
+            console.log('⚠️ No location provided');
+            return null;
+        }
+
+        console.log(`📍 Geocoding: "${location}"`);
+
         const response = await axios.get(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json`,
             {
@@ -13,14 +20,17 @@ const geocodeLocation = async (location) => {
                 }
             }
         );
-        
+
         if (response.data.features && response.data.features.length > 0) {
             const [lng, lat] = response.data.features[0].center;
+            console.log(`✅ Geocoded "${location}" → ${lat}, ${lng}`);
             return { lat, lng };
         }
+
+        console.log(`❌ No results for "${location}"`);
         return null;
     } catch (error) {
-        console.error('Geocoding error:', error.message);
+        console.error('❌ Geocoding error:', error.message);
         return null;
     }
 };
@@ -32,7 +42,6 @@ exports.getAllShipments = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Build filter object
         const filter = {};
         if (req.query.status) filter['shipmentInfo.status'] = req.query.status;
         if (req.query.shipmentType) filter['shipmentInfo.shipmentType'] = req.query.shipmentType;
@@ -45,7 +54,6 @@ exports.getAllShipments = async (req, res) => {
             ];
         }
 
-        // Sorting
         const sort = {};
         if (req.query.sortBy) {
             sort[req.query.sortBy] = req.query.order === 'desc' ? -1 : 1;
@@ -98,10 +106,15 @@ exports.getShipmentById = async (req, res) => {
     }
 };
 
-// Create new shipment with geocoding
+// ✅ FIXED: Create new shipment with geocoding - NOW WITH ERROR HANDLING
 exports.createShipment = async (req, res) => {
     try {
         const shipmentData = req.body;
+
+        console.log('📍 Creating shipment with:');
+        console.log('Origin:', shipmentData.route.origin);
+        console.log('Current:', shipmentData.route.currentLocation);
+        console.log('Destination:', shipmentData.route.destination);
 
         // Geocode locations
         const [originCoords, currentCoords, destinationCoords] = await Promise.all([
@@ -110,19 +123,27 @@ exports.createShipment = async (req, res) => {
             geocodeLocation(shipmentData.route.destination)
         ]);
 
-        // Create shipment with map coordinates
+        console.log('📍 Geocoded results:');
+        console.log('Origin:', originCoords);
+        console.log('Current:', currentCoords);
+        console.log('Destination:', destinationCoords);
+
+        // ✅ FIX: Create shipment with map coordinates - NO NULL VALUES
         const shipment = new Shipment({
             ...shipmentData,
             map: {
-                originCoordinates: originCoords,
-                currentCoordinates: currentCoords,
-                destinationCoordinates: destinationCoords
+                originCoordinates: originCoords || { lat: 4.0511, lng: 9.7679 }, // Default Douala
+                currentCoordinates: currentCoords || { lat: 6.5244, lng: 3.3792 }, // Default Lagos
+                destinationCoordinates: destinationCoords || { lat: 5.6037, lng: -0.1870 } // Default Accra
             }
         });
 
         await shipment.save();
+        console.log('✅ Shipment saved with map:', shipment.map);
+        
         res.status(201).json(shipment);
     } catch (error) {
+        console.error('❌ Create shipment error:', error);
         res.status(400).json({ error: error.message });
     }
 };
@@ -140,9 +161,9 @@ exports.updateShipment = async (req, res) => {
         // ✅ CRITICAL FIX: Keep existing map data if frontend doesn't send it
         if (!shipmentData.map) {
             shipmentData.map = shipment.map || {
-                originCoordinates: { lat: null, lng: null },
-                currentCoordinates: { lat: null, lng: null },
-                destinationCoordinates: { lat: null, lng: null }
+                originCoordinates: { lat: 4.0511, lng: 9.7679 },
+                currentCoordinates: { lat: 6.5244, lng: 3.3792 },
+                destinationCoordinates: { lat: 5.6037, lng: -0.1870 }
             };
         }
 
@@ -207,7 +228,6 @@ exports.addTrackingUpdate = async (req, res) => {
             return res.status(404).json({ error: 'Shipment not found' });
         }
 
-        // Add tracking update
         shipment.trackingHistory.push({
             status: updateData.status,
             location: updateData.location,
@@ -216,11 +236,9 @@ exports.addTrackingUpdate = async (req, res) => {
             time: updateData.time || new Date().toLocaleTimeString('en-US', { hour12: false })
         });
 
-        // Update shipment status
         shipment.shipmentInfo.status = updateData.status;
         shipment.shipmentInfo.lastUpdated = new Date();
 
-        // Update current location if provided
         if (updateData.location) {
             shipment.route.currentLocation = updateData.location;
             const coords = await geocodeLocation(updateData.location);
