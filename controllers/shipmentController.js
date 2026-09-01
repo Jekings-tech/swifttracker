@@ -35,6 +35,36 @@ const geocodeLocation = async (location) => {
     }
 };
 
+// ===== NEW: Image validation function =====
+const validateImageSize = (imageBase64, maxSizeMB = 1) => {
+    if (!imageBase64) return { valid: true };
+    
+    try {
+        // Check if it's a valid base64 image
+        const base64Data = imageBase64.split(',')[1];
+        if (!base64Data) {
+            return { valid: false, error: 'Invalid image format' };
+        }
+        
+        // Calculate size in bytes
+        const sizeInBytes = Buffer.from(base64Data, 'base64').length;
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+        
+        console.log(`📸 Image size: ${(sizeInBytes / 1024).toFixed(2)} KB (${sizeInMB.toFixed(2)} MB)`);
+        
+        if (sizeInMB > maxSizeMB) {
+            return { 
+                valid: false, 
+                error: `Image too large (${sizeInMB.toFixed(2)} MB). Maximum allowed: ${maxSizeMB} MB. Please compress your image.` 
+            };
+        }
+        
+        return { valid: true, sizeInMB };
+    } catch (error) {
+        return { valid: false, error: 'Error processing image: ' + error.message };
+    }
+};
+
 // Get all shipments with filtering, sorting, pagination
 exports.getAllShipments = async (req, res) => {
     try {
@@ -106,21 +136,31 @@ exports.getShipmentById = async (req, res) => {
     }
 };
 
-// ✅ FIXED: Create new shipment with geocoding - NOW WITH ERROR HANDLING
+// ✅ UPDATED: Create new shipment with ALL new fields + image validation
 exports.createShipment = async (req, res) => {
     try {
         const shipmentData = req.body;
 
+        // ===== VALIDATE IMAGE SIZE =====
+        if (shipmentData.itemImage) {
+            const validation = validateImageSize(shipmentData.itemImage, 1); // 1MB max
+            if (!validation.valid) {
+                return res.status(400).json({ error: validation.error });
+            }
+        }
+
         console.log('📍 Creating shipment with:');
-        console.log('Origin:', shipmentData.route.origin);
-        console.log('Current:', shipmentData.route.currentLocation);
-        console.log('Destination:', shipmentData.route.destination);
+        console.log('Origin:', shipmentData.route?.origin);
+        console.log('Current:', shipmentData.route?.currentLocation);
+        console.log('Destination:', shipmentData.route?.destination);
+        console.log('📸 Item Image:', shipmentData.itemImage ? 'Yes (uploaded)' : 'No');
+        console.log('📝 Payment Notes:', shipmentData.payment?.adminNotes || 'None');
 
         // Geocode locations
         const [originCoords, currentCoords, destinationCoords] = await Promise.all([
-            geocodeLocation(shipmentData.route.origin),
-            geocodeLocation(shipmentData.route.currentLocation),
-            geocodeLocation(shipmentData.route.destination)
+            geocodeLocation(shipmentData.route?.origin),
+            geocodeLocation(shipmentData.route?.currentLocation),
+            geocodeLocation(shipmentData.route?.destination)
         ]);
 
         console.log('📍 Geocoded results:');
@@ -128,18 +168,60 @@ exports.createShipment = async (req, res) => {
         console.log('Current:', currentCoords);
         console.log('Destination:', destinationCoords);
 
-        // ✅ FIX: Create shipment with map coordinates - NO NULL VALUES
+        // ===== BUILD SHIPMENT WITH ALL NEW FIELDS =====
         const shipment = new Shipment({
-            ...shipmentData,
+            // Basic shipment info
+            shipmentInfo: shipmentData.shipmentInfo || {},
+            shipper: shipmentData.shipper || {},
+            recipient: shipmentData.recipient || {},
+            route: shipmentData.route || {},
+            package: shipmentData.package || {},
+            
+            // ===== UPDATED PAYMENT (removed paymentMode, added adminNotes) =====
+            payment: {
+                adminNotes: shipmentData.payment?.adminNotes || '',
+                freightCost: shipmentData.payment?.freightCost || 0,
+                paymentStatus: shipmentData.payment?.paymentStatus || 'Pending'
+            },
+            
+            // ===== NEW: Item Image (Optional) =====
+            itemImage: shipmentData.itemImage || null,
+            
+            // ===== NEW: Shipment Progress (4 Steps) =====
+            shipmentProgress: {
+                orderConfirmed: {
+                    selected: true,
+                    date: new Date()
+                },
+                pickedByCourier: {
+                    selected: shipmentData.shipmentProgress?.pickedByCourier?.selected || false,
+                    date: shipmentData.shipmentProgress?.pickedByCourier?.date || null
+                },
+                customHold: {
+                    selected: shipmentData.shipmentProgress?.customHold?.selected || false,
+                    date: shipmentData.shipmentProgress?.customHold?.date || null,
+                    reason: shipmentData.shipmentProgress?.customHold?.reason || '',
+                    amount: shipmentData.shipmentProgress?.customHold?.amount || 0
+                },
+                delivered: {
+                    selected: shipmentData.shipmentProgress?.delivered?.selected || false,
+                    date: shipmentData.shipmentProgress?.delivered?.date || null
+                }
+            },
+            
+            // Map coordinates
             map: {
-                originCoordinates: originCoords || { lat: 4.0511, lng: 9.7679 }, // Default Douala
-                currentCoordinates: currentCoords || { lat: 6.5244, lng: 3.3792 }, // Default Lagos
-                destinationCoordinates: destinationCoords || { lat: 5.6037, lng: -0.1870 } // Default Accra
+                originCoordinates: originCoords || { lat: 4.0511, lng: 9.7679 },
+                currentCoordinates: currentCoords || { lat: 6.5244, lng: 3.3792 },
+                destinationCoordinates: destinationCoords || { lat: 5.6037, lng: -0.1870 }
             }
         });
 
         await shipment.save();
-        console.log('✅ Shipment saved with map:', shipment.map);
+        console.log('✅ Shipment saved with all fields');
+        console.log('✅ Shipment Progress:', shipment.shipmentProgress);
+        console.log('✅ Payment Notes:', shipment.payment.adminNotes);
+        console.log('✅ Item Image:', shipment.itemImage ? 'Uploaded' : 'None');
         
         res.status(201).json(shipment);
     } catch (error) {
@@ -148,7 +230,7 @@ exports.createShipment = async (req, res) => {
     }
 };
 
-// ✅ FIXED: Update shipment - preserves map data when not provided
+// ✅ UPDATED: Update shipment with ALL new fields + image validation
 exports.updateShipment = async (req, res) => {
     try {
         const shipmentData = req.body;
@@ -157,6 +239,18 @@ exports.updateShipment = async (req, res) => {
         if (!shipment) {
             return res.status(404).json({ error: 'Shipment not found' });
         }
+
+        // ===== VALIDATE IMAGE SIZE =====
+        if (shipmentData.itemImage) {
+            const validation = validateImageSize(shipmentData.itemImage, 1); // 1MB max
+            if (!validation.valid) {
+                return res.status(400).json({ error: validation.error });
+            }
+        }
+
+        console.log('📝 Updating shipment:', shipment.trackingId);
+        console.log('📸 Item Image:', shipmentData.itemImage ? 'Yes (uploaded)' : 'No');
+        console.log('📝 Payment Notes:', shipmentData.payment?.adminNotes || 'None');
 
         // ✅ CRITICAL FIX: Keep existing map data if frontend doesn't send it
         if (!shipmentData.map) {
@@ -169,7 +263,6 @@ exports.updateShipment = async (req, res) => {
 
         // Update geocoding if location changed
         if (shipmentData.route) {
-            // Only geocode if location actually changed
             if (shipmentData.route.origin && shipmentData.route.origin !== shipment.route.origin) {
                 const coords = await geocodeLocation(shipmentData.route.origin);
                 if (coords) {
@@ -192,13 +285,99 @@ exports.updateShipment = async (req, res) => {
             }
         }
 
-        // Update shipment with all data
-        Object.assign(shipment, shipmentData);
+        // ===== UPDATE SHIPMENT WITH ALL FIELDS =====
+        // Update basic info
+        if (shipmentData.shipmentInfo) {
+            shipment.shipmentInfo = {
+                ...shipment.shipmentInfo,
+                ...shipmentData.shipmentInfo
+            };
+        }
+        
+        if (shipmentData.shipper) {
+            shipment.shipper = { ...shipment.shipper, ...shipmentData.shipper };
+        }
+        
+        if (shipmentData.recipient) {
+            shipment.recipient = { ...shipment.recipient, ...shipmentData.recipient };
+        }
+        
+        if (shipmentData.route) {
+            shipment.route = { ...shipment.route, ...shipmentData.route };
+        }
+        
+        if (shipmentData.package) {
+            shipment.package = { ...shipment.package, ...shipmentData.package };
+        }
+
+        // ===== UPDATE PAYMENT (removed paymentMode, added adminNotes) =====
+        if (shipmentData.payment) {
+            shipment.payment = {
+                adminNotes: shipmentData.payment.adminNotes !== undefined ? shipmentData.payment.adminNotes : shipment.payment.adminNotes,
+                freightCost: shipmentData.payment.freightCost !== undefined ? shipmentData.payment.freightCost : shipment.payment.freightCost,
+                paymentStatus: shipmentData.payment.paymentStatus || shipment.payment.paymentStatus
+            };
+        }
+
+        // ===== UPDATE ITEM IMAGE =====
+        if (shipmentData.itemImage !== undefined) {
+            shipment.itemImage = shipmentData.itemImage;
+        }
+
+        // ===== UPDATE SHIPMENT PROGRESS (4 Steps) =====
+        if (shipmentData.shipmentProgress) {
+            shipment.shipmentProgress = {
+                orderConfirmed: {
+                    selected: shipmentData.shipmentProgress.orderConfirmed?.selected !== undefined ? 
+                        shipmentData.shipmentProgress.orderConfirmed.selected : 
+                        shipment.shipmentProgress.orderConfirmed.selected,
+                    date: shipmentData.shipmentProgress.orderConfirmed?.date || 
+                        shipment.shipmentProgress.orderConfirmed.date || new Date()
+                },
+                pickedByCourier: {
+                    selected: shipmentData.shipmentProgress.pickedByCourier?.selected !== undefined ? 
+                        shipmentData.shipmentProgress.pickedByCourier.selected : 
+                        shipment.shipmentProgress.pickedByCourier.selected,
+                    date: shipmentData.shipmentProgress.pickedByCourier?.date || 
+                        shipment.shipmentProgress.pickedByCourier.date
+                },
+                customHold: {
+                    selected: shipmentData.shipmentProgress.customHold?.selected !== undefined ? 
+                        shipmentData.shipmentProgress.customHold.selected : 
+                        shipment.shipmentProgress.customHold.selected,
+                    date: shipmentData.shipmentProgress.customHold?.date || 
+                        shipment.shipmentProgress.customHold.date,
+                    reason: shipmentData.shipmentProgress.customHold?.reason || 
+                        shipment.shipmentProgress.customHold.reason || '',
+                    amount: shipmentData.shipmentProgress.customHold?.amount !== undefined ? 
+                        shipmentData.shipmentProgress.customHold.amount : 
+                        shipment.shipmentProgress.customHold.amount || 0
+                },
+                delivered: {
+                    selected: shipmentData.shipmentProgress.delivered?.selected !== undefined ? 
+                        shipmentData.shipmentProgress.delivered.selected : 
+                        shipment.shipmentProgress.delivered.selected,
+                    date: shipmentData.shipmentProgress.delivered?.date || 
+                        shipment.shipmentProgress.delivered.date
+                }
+            };
+        }
+
+        // Update map
+        if (shipmentData.map) {
+            shipment.map = {
+                ...shipment.map,
+                ...shipmentData.map
+            };
+        }
+
         await shipment.save();
+        console.log('✅ Shipment updated successfully');
+        console.log('✅ Shipment Progress:', shipment.shipmentProgress);
         
         res.json(shipment);
     } catch (error) {
-        console.error('Error updating shipment:', error);
+        console.error('❌ Error updating shipment:', error);
         res.status(400).json({ error: error.message });
     }
 };
@@ -217,7 +396,7 @@ exports.deleteShipment = async (req, res) => {
     }
 };
 
-// Add tracking update
+// ✅ UPDATED: Add tracking update with progress sync
 exports.addTrackingUpdate = async (req, res) => {
     try {
         const { trackingId } = req.params;
@@ -228,6 +407,7 @@ exports.addTrackingUpdate = async (req, res) => {
             return res.status(404).json({ error: 'Shipment not found' });
         }
 
+        // Add tracking history entry
         shipment.trackingHistory.push({
             status: updateData.status,
             location: updateData.location,
@@ -236,9 +416,11 @@ exports.addTrackingUpdate = async (req, res) => {
             time: updateData.time || new Date().toLocaleTimeString('en-US', { hour12: false })
         });
 
+        // Update main status
         shipment.shipmentInfo.status = updateData.status;
         shipment.shipmentInfo.lastUpdated = new Date();
 
+        // Update location if provided
         if (updateData.location) {
             shipment.route.currentLocation = updateData.location;
             const coords = await geocodeLocation(updateData.location);
@@ -247,9 +429,46 @@ exports.addTrackingUpdate = async (req, res) => {
             }
         }
 
+        // ===== SYNC SHIPMENT PROGRESS BASED ON STATUS =====
+        const status = updateData.status.toLowerCase();
+        
+        // Order Confirmed is always true (already set)
+        
+        // Picked by Courier
+        if (status === 'picked up' || status === 'in transit' || status === 'out for delivery' || status === 'delivered') {
+            shipment.shipmentProgress.pickedByCourier.selected = true;
+            if (!shipment.shipmentProgress.pickedByCourier.date) {
+                shipment.shipmentProgress.pickedByCourier.date = new Date();
+            }
+        }
+        
+        // Custom Hold
+        if (status === 'on hold' || status === 'customs clearance') {
+            shipment.shipmentProgress.customHold.selected = true;
+            if (!shipment.shipmentProgress.customHold.date) {
+                shipment.shipmentProgress.customHold.date = new Date();
+            }
+            // If updateData has reason, use it
+            if (updateData.comment) {
+                shipment.shipmentProgress.customHold.reason = updateData.comment;
+            }
+        }
+        
+        // Delivered
+        if (status === 'delivered') {
+            shipment.shipmentProgress.delivered.selected = true;
+            if (!shipment.shipmentProgress.delivered.date) {
+                shipment.shipmentProgress.delivered.date = new Date();
+            }
+        }
+
         await shipment.save();
+        console.log('✅ Tracking update added');
+        console.log('✅ Updated Progress:', shipment.shipmentProgress);
+        
         res.json(shipment);
     } catch (error) {
+        console.error('❌ Error adding tracking update:', error);
         res.status(400).json({ error: error.message });
     }
 };

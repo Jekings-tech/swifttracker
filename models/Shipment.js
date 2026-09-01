@@ -29,13 +29,64 @@ const trackingUpdateSchema = new mongoose.Schema({
     }
 }, { _id: true });
 
+// ===== NEW: Shipment Progress Schema (4 Steps) =====
+const shipmentProgressSchema = new mongoose.Schema({
+    orderConfirmed: {
+        selected: {
+            type: Boolean,
+            default: true
+        },
+        date: {
+            type: Date,
+            default: Date.now
+        }
+    },
+    pickedByCourier: {
+        selected: {
+            type: Boolean,
+            default: false
+        },
+        date: {
+            type: Date,
+            default: null
+        }
+    },
+    customHold: {
+        selected: {
+            type: Boolean,
+            default: false
+        },
+        date: {
+            type: Date,
+            default: null
+        },
+        reason: {
+            type: String,
+            default: ''
+        },
+        amount: {
+            type: Number,
+            default: 0
+        }
+    },
+    delivered: {
+        selected: {
+            type: Boolean,
+            default: false
+        },
+        date: {
+            type: Date,
+            default: null
+        }
+    }
+}, { _id: false });
+
 const shipmentSchema = new mongoose.Schema({
     trackingId: {
         type: String,
         unique: true,
         required: true,
         default: function() {
-            // Generate tracking ID if not provided
             const prefix = 'TRK';
             const timestamp = Date.now().toString().slice(-8);
             const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
@@ -171,11 +222,11 @@ const shipmentSchema = new mongoose.Schema({
             default: ''
         }
     },
+    // ===== UPDATED: Payment Schema - REMOVED paymentMode, ADDED adminNotes =====
     payment: {
-        paymentMode: {
+        adminNotes: {
             type: String,
-            required: true,
-            enum: ['Cash', 'Bank Transfer', 'Mobile Money', 'Credit Card', 'Other']
+            default: ''
         },
         freightCost: {
             type: Number,
@@ -188,22 +239,35 @@ const shipmentSchema = new mongoose.Schema({
             enum: ['Pending', 'Paid', 'Partially Paid', 'Overdue']
         }
     },
-    // In models/Shipment.js - REPLACE the map section with this:
-
-map: {
-    originCoordinates: {
-        lat: { type: Number, default: null },
-        lng: { type: Number, default: null }
+    // ===== NEW: Item Image (Optional) =====
+    itemImage: {
+        type: String,
+        default: null
     },
-    currentCoordinates: {
-        lat: { type: Number, default: null },
-        lng: { type: Number, default: null }
+    // ===== NEW: Shipment Progress (4 Steps) =====
+    shipmentProgress: {
+        type: shipmentProgressSchema,
+        default: () => ({
+            orderConfirmed: { selected: true, date: new Date() },
+            pickedByCourier: { selected: false, date: null },
+            customHold: { selected: false, date: null, reason: '', amount: 0 },
+            delivered: { selected: false, date: null }
+        })
     },
-    destinationCoordinates: {
-        lat: { type: Number, default: null },
-        lng: { type: Number, default: null }
-    }
-},
+    map: {
+        originCoordinates: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null }
+        },
+        currentCoordinates: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null }
+        },
+        destinationCoordinates: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null }
+        }
+    },
     trackingHistory: [trackingUpdateSchema],
     createdAt: {
         type: Date,
@@ -217,9 +281,8 @@ map: {
     timestamps: true
 });
 
-// Generate tracking ID before saving - FIXED VERSION
+// Generate tracking ID before saving
 shipmentSchema.pre('save', function(next) {
-    // If trackingId is not provided or empty, generate one
     if (!this.trackingId || this.trackingId === '') {
         const prefix = 'TRK';
         const timestamp = Date.now().toString().slice(-8);
