@@ -18,7 +18,7 @@ connectDB();
 
 // ===== CORS - ALLOW ALL ORIGINS =====
 app.use(cors({
-    origin: '*',  // ← This allows ANY origin
+    origin: '*',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -28,7 +28,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - Note: 'trust proxy' may be needed for production
 app.use(session({
     secret: process.env.JWT_SECRET || 'fallback_secret',
     resave: false,
@@ -52,7 +51,7 @@ app.get('/health', (req, res) => {
 // ===== TEST EMAIL ROUTE =====
 app.get('/api/test-email', async (req, res) => {
     try {
-        const result = await emailService.sendTestEmail(process.env.EMAIL_USER || 'menangjekings@gmail.com');
+        const result = await emailService.sendTestEmail('menangjekings@gmail.com');
         if (result.success) {
             res.json({ 
                 success: true, 
@@ -119,5 +118,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📦 MongoDB: ${process.env.MONGODB_URI ? '✅ Connected' : '❌ Not configured'}`);
     console.log(`🔑 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔓 CORS: Allow ALL origins (any website can access this API)`);
-    console.log(`📧 Email: ${process.env.EMAIL_USER ? '✅ Configured' : '❌ Not configured'}`);
+    console.log(`📧 Email: ${process.env.BREVO_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
 });
