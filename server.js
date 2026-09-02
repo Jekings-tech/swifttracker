@@ -7,6 +7,9 @@ const connectDB = require('./config/db');
 const shipmentRoutes = require('./routes/shipmentRoutes');
 const { validateLogin, generateToken } = require('./middleware/auth');
 
+// ===== IMPORT EMAIL SERVICE =====
+const emailService = require('./utils/email');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -44,6 +47,30 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development'
     });
+});
+
+// ===== TEST EMAIL ROUTE =====
+app.get('/api/test-email', async (req, res) => {
+    try {
+        const result = await emailService.sendTestEmail(process.env.EMAIL_USER || 'menangjekings@gmail.com');
+        if (result.success) {
+            res.json({ 
+                success: true, 
+                message: '✅ Test email sent successfully! Check your inbox.' 
+            });
+        } else {
+            res.status(500).json({ 
+                success: false, 
+                error: result.error || 'Email sending failed' 
+            });
+        }
+    } catch (error) {
+        console.error('❌ Test email route error:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 // Login route
@@ -92,4 +119,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📦 MongoDB: ${process.env.MONGODB_URI ? '✅ Connected' : '❌ Not configured'}`);
     console.log(`🔑 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔓 CORS: Allow ALL origins (any website can access this API)`);
+    console.log(`📧 Email: ${process.env.EMAIL_USER ? '✅ Configured' : '❌ Not configured'}`);
 });

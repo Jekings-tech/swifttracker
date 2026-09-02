@@ -1,3 +1,4 @@
+const emailService = require('../utils/email');
 const Shipment = require('../models/Shipment');
 const axios = require('axios');
 
@@ -136,7 +137,7 @@ exports.getShipmentById = async (req, res) => {
     }
 };
 
-// ✅ UPDATED: Create new shipment with ALL new fields + image validation
+// ✅ UPDATED: Create new shipment with ALL new fields + image validation + EMAIL
 exports.createShipment = async (req, res) => {
     try {
         const shipmentData = req.body;
@@ -222,6 +223,15 @@ exports.createShipment = async (req, res) => {
         console.log('✅ Shipment Progress:', shipment.shipmentProgress);
         console.log('✅ Payment Notes:', shipment.payment.adminNotes);
         console.log('✅ Item Image:', shipment.itemImage ? 'Uploaded' : 'None');
+
+        // ===== SEND CONFIRMATION EMAIL TO BOTH RECIPIENT AND SHIPPER =====
+        try {
+            await emailService.sendShipmentCreated(shipment);
+            console.log('📧 Confirmation email sent to recipient and shipper');
+        } catch (emailError) {
+            console.error('❌ Email failed (non-critical):', emailError.message);
+            // Don't fail the shipment creation if email fails
+        }
         
         res.status(201).json(shipment);
     } catch (error) {
@@ -407,6 +417,9 @@ exports.addTrackingUpdate = async (req, res) => {
             return res.status(404).json({ error: 'Shipment not found' });
         }
 
+        // Store old status before updating
+        const oldStatus = shipment.shipmentInfo.status;
+
         // Add tracking history entry
         shipment.trackingHistory.push({
             status: updateData.status,
@@ -465,6 +478,16 @@ exports.addTrackingUpdate = async (req, res) => {
         await shipment.save();
         console.log('✅ Tracking update added');
         console.log('✅ Updated Progress:', shipment.shipmentProgress);
+
+        // ===== SEND STATUS UPDATE EMAIL IF STATUS CHANGED =====
+        if (oldStatus !== updateData.status) {
+            try {
+                await emailService.sendShipmentStatusUpdate(shipment, oldStatus, updateData.status);
+                console.log('📧 Status update email sent to recipient and shipper');
+            } catch (emailError) {
+                console.error('❌ Status email failed (non-critical):', emailError.message);
+            }
+        }
         
         res.json(shipment);
     } catch (error) {
