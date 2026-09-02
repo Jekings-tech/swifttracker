@@ -11,7 +11,7 @@ apiInstance.setApiKey(
 
 // ===== SHIPMENT CONFIRMATION EMAIL =====
 async function sendShipmentCreated(shipment) {
-    const trackingLink = `${process.env.FRONTEND_URL}/track/${shipment.trackingId}`;
+    // REMOVED trackingLink - now using instructions instead
     
     const estDelivery = new Date(shipment.shipmentInfo.estimatedDelivery);
     const formattedDate = estDelivery.toLocaleDateString('en-US', {
@@ -71,10 +71,20 @@ async function sendShipmentCreated(shipment) {
                     </table>
                 </div>
                 
-                <div style="text-align: center; margin: 24px 0 20px 0;">
-                    <a href="${trackingLink}" style="display: inline-block; background: #DC2626; color: #ffffff; padding: 13px 38px; border-radius: 50px; font-weight: 700; font-size: 15px; text-decoration: none;">
-                        Track Your Shipment
-                    </a>
+                <!-- REPLACED LINK WITH INSTRUCTIONS -->
+                <div style="text-align: center; margin: 24px 0 20px 0; background: #F8FAFC; padding: 16px 20px; border-radius: 10px; border: 1px dashed #DC2626;">
+                    <p style="margin: 0 0 4px 0; font-size: 14px; color: #64748B;">
+                        🔍 To track your shipment:
+                    </p>
+                    <p style="margin: 0; font-size: 16px; font-weight: 700; color: #1A202C;">
+                        1. Go to <span style="color: #DC2626;">swiftexpressfreight.com</span>
+                    </p>
+                    <p style="margin: 0; font-size: 16px; font-weight: 700; color: #1A202C;">
+                        2. Enter your Tracking Number: <span style="color: #DC2626;">${shipment.trackingId}</span>
+                    </p>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: #94A3B8;">
+                        Click "Track" to see real-time updates
+                    </p>
                 </div>
                 
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
@@ -99,7 +109,7 @@ async function sendShipmentCreated(shipment) {
                     Thank you for choosing <strong style="color: #DC2626;">SWIFTEXPRESS</strong>
                 </p>
                 <p style="color: #94A3B8; font-size: 11px; margin: 4px 0 0;">
-                    This is an automated message. Please do not reply to this email.
+                    
                 </p>
             </div>
         </div>
@@ -131,7 +141,13 @@ Carrier: ${shipment.shipmentInfo.carrier}
 Est. Delivery: ${formattedDate}
 Status: ${shipment.shipmentInfo.status}
 
-Track your shipment: ${trackingLink}
+🔍 To track your shipment:
+1. Go to swiftexpressfreight.com
+2. Enter your Tracking Number: ${shipment.trackingId}
+3. Click "Track" to see real-time updates
+
+What happens next?
+You will receive email updates as your shipment moves through our network.
 
 Need help? Contact us at support@swiftexpressfreight.com
 
@@ -207,7 +223,7 @@ async function sendTestEmail(to) {
 
 // ===== STATUS UPDATE EMAIL =====
 async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
-    const trackingLink = `${process.env.FRONTEND_URL}/track/${shipment.trackingId}`;
+    // REMOVED trackingLink - using instructions instead
     
     const statusMessages = {
         'Picked Up': 'Your package has been picked up by our courier.',
@@ -258,10 +274,20 @@ async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
                     </table>
                 </div>
                 
-                <div style="text-align: center; margin: 24px 0 20px 0;">
-                    <a href="${trackingLink}" style="display: inline-block; background: #DC2626; color: #ffffff; padding: 13px 38px; border-radius: 50px; font-weight: 700; font-size: 15px; text-decoration: none;">
-                        Track Your Shipment
-                    </a>
+                <!-- REPLACED LINK WITH INSTRUCTIONS -->
+                <div style="text-align: center; margin: 24px 0 20px 0; background: #F8FAFC; padding: 16px 20px; border-radius: 10px; border: 1px dashed #DC2626;">
+                    <p style="margin: 0 0 4px 0; font-size: 14px; color: #64748B;">
+                        🔍 To track your shipment:
+                    </p>
+                    <p style="margin: 0; font-size: 16px; font-weight: 700; color: #1A202C;">
+                        1. Go to <span style="color: #DC2626;">swiftexpressfreight.com</span>
+                    </p>
+                    <p style="margin: 0; font-size: 16px; font-weight: 700; color: #1A202C;">
+                        2. Enter your Tracking Number: <span style="color: #DC2626;">${shipment.trackingId}</span>
+                    </p>
+                    <p style="margin: 4px 0 0; font-size: 13px; color: #94A3B8;">
+                        Click "Track" to see real-time updates
+                    </p>
                 </div>
                 
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
@@ -308,9 +334,12 @@ Previous Status: ${oldStatus}
 New Status: ${newStatus}
 Location: ${shipment.route.currentLocation}
 
-Track your shipment: ${trackingLink}
+🔍 To track your shipment:
+1. Go to swiftexpressfreight.com
+2. Enter your Tracking Number: ${shipment.trackingId}
+3. Click "Track" to see real-time updates
 
-Need help? Contact us at support@swiftexpressfreight.com
+Need help? Contact us at info@swiftexpressfreight.com
 
 Thank you for choosing SWIFTEXPRESS.
     `;
