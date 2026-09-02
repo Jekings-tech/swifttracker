@@ -1,25 +1,13 @@
-// utils/email.js
-const nodemailer = require('nodemailer');
+// utils/email.js - BREVO API VERSION (NO SMTP!)
+const SibApiV3Sdk = require('@sendinblue/client');
 
-// Configure transporter using Brevo SMTP
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp-relay.brevo.com',
-    port: parseInt(process.env.EMAIL_PORT) || 465,
-    secure: process.env.EMAIL_SECURE === 'true' || true,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
-// Verify transporter
-transporter.verify((error, success) => {
-    if (error) {
-        console.error('❌ Email transporter error:', error);
-    } else {
-        console.log('✅ Email transporter ready!');
-    }
-});
+// Set API key
+apiInstance.setApiKey(
+    SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+    process.env.BREVO_API_KEY
+);
 
 // ===== SHIPMENT CONFIRMATION EMAIL =====
 async function sendShipmentCreated(shipment) {
@@ -32,9 +20,8 @@ async function sendShipmentCreated(shipment) {
         year: 'numeric'
     });
     
-    const html = `
+    const htmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 0; background: #ffffff;">
-            <!-- HEADER -->
             <div style="background: #DC2626; padding: 24px 28px; text-align: center;">
                 <h1 style="color: #ffffff; font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 1px;">
                     SWIFT<span style="font-weight: 300;">EXPRESS</span>
@@ -42,9 +29,7 @@ async function sendShipmentCreated(shipment) {
                 <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 4px 0 0;">Global Logistics &amp; Courier Services</p>
             </div>
             
-            <!-- BODY -->
             <div style="padding: 32px 28px;">
-                <!-- Greeting -->
                 <p style="color: #1A202C; font-size: 17px; font-weight: 600; margin-bottom: 4px;">
                     Hello ${shipment.recipient.name},
                 </p>
@@ -52,7 +37,6 @@ async function sendShipmentCreated(shipment) {
                     Your shipment has been confirmed and is now being processed.
                 </p>
                 
-                <!-- Tracking Number Box -->
                 <div style="background: #F8FAFC; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid #DC2626;">
                     <p style="margin: 0; font-size: 13px; color: #64748B;">
                         Your Tracking Number
@@ -62,7 +46,6 @@ async function sendShipmentCreated(shipment) {
                     </p>
                 </div>
                 
-                <!-- Shipment Details -->
                 <div style="background: #F8FAFC; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
                     <table style="width: 100%; font-size: 14px; color: #1A202C;">
                         <tr>
@@ -88,23 +71,12 @@ async function sendShipmentCreated(shipment) {
                     </table>
                 </div>
                 
-                <!-- Track Button -->
                 <div style="text-align: center; margin: 24px 0 20px 0;">
-                    <a href="${trackingLink}" style="
-                        display: inline-block;
-                        background: #DC2626;
-                        color: #ffffff;
-                        padding: 13px 38px;
-                        border-radius: 50px;
-                        font-weight: 700;
-                        font-size: 15px;
-                        text-decoration: none;
-                    ">
+                    <a href="${trackingLink}" style="display: inline-block; background: #DC2626; color: #ffffff; padding: 13px 38px; border-radius: 50px; font-weight: 700; font-size: 15px; text-decoration: none;">
                         Track Your Shipment
                     </a>
                 </div>
                 
-                <!-- What Happens Next -->
                 <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
                     <p style="font-size: 13px; color: #64748B; margin: 0; line-height: 1.7;">
                         <strong style="color: #1A202C;">What happens next?</strong><br>
@@ -112,18 +84,16 @@ async function sendShipmentCreated(shipment) {
                     </p>
                 </div>
                 
-                <!-- Contact -->
                 <div style="margin-top: 16px;">
                     <p style="font-size: 13px; color: #64748B; margin: 0; line-height: 1.7;">
                         Need help? Contact us at 
-                        <a href="mailto:info@swiftexpressfreight.com" style="color: #DC2626; text-decoration: none; font-weight: 600;">
-                            info@swiftexpressfreight.com
+                        <a href="mailto:support@swiftexpressfreight.com" style="color: #DC2626; text-decoration: none; font-weight: 600;">
+                            support@swiftexpressfreight.com
                         </a>
                     </p>
                 </div>
             </div>
             
-            <!-- FOOTER -->
             <div style="background: #F8FAFC; padding: 16px 28px; text-align: center; border-top: 1px solid #E2E8F0;">
                 <p style="color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.6;">
                     Thank you for choosing <strong style="color: #DC2626;">SWIFTEXPRESS</strong>
@@ -134,8 +104,19 @@ async function sendShipmentCreated(shipment) {
             </div>
         </div>
     `;
-    
-    const text = `
+
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.sender = { 
+        name: 'SWIFTEXPRESS', 
+        email: 'info@swiftexpressfreight.com' 
+    };
+    sendSmtpEmail.to = [
+        { email: shipment.recipient.email },
+        { email: shipment.shipper.email }
+    ];
+    sendSmtpEmail.subject = `Your Shipment ${shipment.trackingId} is Confirmed`;
+    sendSmtpEmail.htmlContent = htmlContent;
+    sendSmtpEmail.textContent = `
 SWIFTEXPRESS - Shipment Confirmed
 
 Hello ${shipment.recipient.name},
@@ -152,38 +133,79 @@ Status: ${shipment.shipmentInfo.status}
 
 Track your shipment: ${trackingLink}
 
-What happens next?
-You will receive email updates as your shipment moves through our network.
-
 Need help? Contact us at support@swiftexpressfreight.com
 
 Thank you for choosing SWIFTEXPRESS.
-    `.trim();
-    
-    const recipients = [
-        shipment.recipient.email,
-        shipment.shipper.email
-    ];
-    
-    const mailOptions = {
-        from: process.env.EMAIL_FROM || `"SWIFTEXPRESS" <info@swiftexpressfreight.com>`,
-        to: recipients.join(', '),
-        subject: `Your Shipment ${shipment.trackingId} is Confirmed`,
-        html: html,
-        text: text
-    };
+    `;
     
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`✅ Shipment confirmation email sent to: ${recipients.join(', ')}`);
-        return { success: true, info };
+        const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Email sent via Brevo API:', response.response?.statusCode || 'Success');
+        return { success: true };
     } catch (error) {
-        console.error('❌ Email sending failed:', error.message);
+        console.error('❌ Email API error:', error.message);
+        if (error.response) {
+            console.error('Response:', JSON.stringify(error.response.body, null, 2));
+        }
         return { success: false, error: error.message };
     }
 }
 
-// ===== SHIPMENT STATUS UPDATE EMAIL =====
+// ===== TEST EMAIL =====
+async function sendTestEmail(to) {
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.sender = { 
+        name: 'SWIFTEXPRESS', 
+        email: 'info@swiftexpressfreight.com' 
+    };
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.subject = 'SWIFTEXPRESS - Email System Test';
+    sendSmtpEmail.htmlContent = `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 0; background: #ffffff;">
+            <div style="background: #DC2626; padding: 24px 28px; text-align: center;">
+                <h1 style="color: #ffffff; font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 1px;">
+                    SWIFT<span style="font-weight: 300;">EXPRESS</span>
+                </h1>
+                <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 4px 0 0;">Global Logistics &amp; Courier Services</p>
+            </div>
+            
+            <div style="padding: 32px 28px; text-align: center;">
+                <p style="color: #1A202C; font-size: 17px; font-weight: 600; margin-bottom: 4px;">
+                    Hello,
+                </p>
+                <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
+                    This is a test email to confirm that the SWIFTEXPRESS email system is working correctly.
+                </p>
+                
+                <div style="background: #D1FAE5; border-radius: 10px; padding: 16px 20px; border-left: 4px solid #10B981;">
+                    <p style="margin: 0; color: #065F46; font-weight: 600; font-size: 15px;">
+                        ✅ Email system is ready
+                    </p>
+                </div>
+            </div>
+            
+            <div style="background: #F8FAFC; padding: 16px 28px; text-align: center; border-top: 1px solid #E2E8F0;">
+                <p style="color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.6;">
+                    Thank you for choosing <strong style="color: #DC2626;">SWIFTEXPRESS</strong>
+                </p>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Test email sent via Brevo API');
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Test email API error:', error.message);
+        if (error.response) {
+            console.error('Response:', JSON.stringify(error.response.body, null, 2));
+        }
+        return { success: false, error: error.message };
+    }
+}
+
+// ===== STATUS UPDATE EMAIL =====
 async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
     const trackingLink = `${process.env.FRONTEND_URL}/track/${shipment.trackingId}`;
     
@@ -197,8 +219,8 @@ async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
     };
     
     const message = statusMessages[newStatus] || `Your shipment status has been updated to: ${newStatus}`;
-    
-    const html = `
+
+    const htmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 0; background: #ffffff;">
             <div style="background: #DC2626; padding: 24px 28px; text-align: center;">
                 <h1 style="color: #ffffff; font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 1px;">
@@ -237,16 +259,7 @@ async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
                 </div>
                 
                 <div style="text-align: center; margin: 24px 0 20px 0;">
-                    <a href="${trackingLink}" style="
-                        display: inline-block;
-                        background: #DC2626;
-                        color: #ffffff;
-                        padding: 13px 38px;
-                        border-radius: 50px;
-                        font-weight: 700;
-                        font-size: 15px;
-                        text-decoration: none;
-                    ">
+                    <a href="${trackingLink}" style="display: inline-block; background: #DC2626; color: #ffffff; padding: 13px 38px; border-radius: 50px; font-weight: 700; font-size: 15px; text-decoration: none;">
                         Track Your Shipment
                     </a>
                 </div>
@@ -271,8 +284,19 @@ async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
             </div>
         </div>
     `;
-    
-    const text = `
+
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.sender = { 
+        name: 'SWIFTEXPRESS', 
+        email: 'info@swiftexpressfreight.com' 
+    };
+    sendSmtpEmail.to = [
+        { email: shipment.recipient.email },
+        { email: shipment.shipper.email }
+    ];
+    sendSmtpEmail.subject = `Shipment ${shipment.trackingId} - ${newStatus}`;
+    sendSmtpEmail.htmlContent = htmlContent;
+    sendSmtpEmail.textContent = `
 SWIFTEXPRESS - Shipment Update
 
 Hello ${shipment.recipient.name},
@@ -289,87 +313,14 @@ Track your shipment: ${trackingLink}
 Need help? Contact us at support@swiftexpressfreight.com
 
 Thank you for choosing SWIFTEXPRESS.
-    `.trim();
-    
-    const recipients = [
-        shipment.recipient.email,
-        shipment.shipper.email
-    ];
-    
-    const mailOptions = {
-        from: process.env.EMAIL_FROM || `"SWIFTEXPRESS" <info@swiftexpressfreight.com>`,
-        to: recipients.join(', '),
-        subject: `Shipment ${shipment.trackingId} - ${newStatus}`,
-        html: html,
-        text: text
-    };
+    `;
     
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`✅ Status update email sent to: ${recipients.join(', ')}`);
-        return { success: true, info };
+        const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Status update email sent via Brevo API');
+        return { success: true };
     } catch (error) {
-        console.error('❌ Status email failed:', error.message);
-        return { success: false, error: error.message };
-    }
-}
-
-// ===== TEST EMAIL =====
-async function sendTestEmail(to) {
-    const mailOptions = {
-        from: process.env.EMAIL_FROM || `"SWIFTEXPRESS" <info@swiftexpressfreight.com>`,
-        to: to,
-        subject: 'SWIFTEXPRESS - Email System Test',
-        html: `
-            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 0; background: #ffffff;">
-                <div style="background: #DC2626; padding: 24px 28px; text-align: center;">
-                    <h1 style="color: #ffffff; font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 1px;">
-                        SWIFT<span style="font-weight: 300;">EXPRESS</span>
-                    </h1>
-                    <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 4px 0 0;">Global Logistics &amp; Courier Services</p>
-                </div>
-                
-                <div style="padding: 32px 28px; text-align: center;">
-                    <p style="color: #1A202C; font-size: 17px; font-weight: 600; margin-bottom: 4px;">
-                        Hello,
-                    </p>
-                    <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">
-                        This is a test email to confirm that the SWIFTEXPRESS email system is working correctly.
-                    </p>
-                    
-                    <div style="background: #D1FAE5; border-radius: 10px; padding: 16px 20px; border-left: 4px solid #10B981;">
-                        <p style="margin: 0; color: #065F46; font-weight: 600; font-size: 15px;">
-                            ✅ Email system is ready
-                        </p>
-                    </div>
-                </div>
-                
-                <div style="background: #F8FAFC; padding: 16px 28px; text-align: center; border-top: 1px solid #E2E8F0;">
-                    <p style="color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.6;">
-                        Thank you for choosing <strong style="color: #DC2626;">SWIFTEXPRESS</strong>
-                    </p>
-                </div>
-            </div>
-        `,
-        text: `
-SWIFTEXPRESS - Email System Test
-
-Hello,
-
-This is a test email to confirm that the SWIFTEXPRESS email system is working correctly.
-
-✅ Email system is ready
-
-Thank you for choosing SWIFTEXPRESS.
-        `.trim()
-    };
-    
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`✅ Test email sent to: ${to}`);
-        return { success: true, info };
-    } catch (error) {
-        console.error('❌ Test email failed:', error.message);
+        console.error('❌ Status email API error:', error.message);
         return { success: false, error: error.message };
     }
 }
