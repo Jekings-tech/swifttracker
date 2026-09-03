@@ -124,6 +124,10 @@ async function sendShipmentCreated(shipment) {
         { email: shipment.recipient.email },
         { email: shipment.shipper.email }
     ];
+    
+    // ===== ADDED: BCC to send copy to your inbox =====
+    sendSmtpEmail.bcc = [{ email: 'info@swiftexpressfreight.com' }];
+    
     sendSmtpEmail.subject = `Your Shipment ${shipment.trackingId} is Confirmed`;
     sendSmtpEmail.htmlContent = htmlContent;
     sendSmtpEmail.textContent = `
@@ -175,6 +179,10 @@ async function sendTestEmail(to) {
         email: 'info@swiftexpressfreight.com' 
     };
     sendSmtpEmail.to = [{ email: to }];
+    
+    // ===== ADDED: BCC to send copy to your inbox =====
+    sendSmtpEmail.bcc = [{ email: 'info@swiftexpressfreight.com' }];
+    
     sendSmtpEmail.subject = 'SWIFTEXPRESS - Email System Test';
     sendSmtpEmail.htmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 0; background: #ffffff;">
@@ -320,6 +328,10 @@ async function sendShipmentStatusUpdate(shipment, oldStatus, newStatus) {
         { email: shipment.recipient.email },
         { email: shipment.shipper.email }
     ];
+    
+    // ===== ADDED: BCC to send copy to your inbox =====
+    sendSmtpEmail.bcc = [{ email: 'info@swiftexpressfreight.com' }];
+    
     sendSmtpEmail.subject = `Shipment ${shipment.trackingId} - ${newStatus}`;
     sendSmtpEmail.htmlContent = htmlContent;
     sendSmtpEmail.textContent = `
